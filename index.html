@@ -1,0 +1,925 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Human voice. Or machine echo? — AI Voice Detector</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;480;500;700&family=JetBrains+Mono:wght@400;480;500&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing:border-box; }
+  html, body { min-height:100%; margin:0; background:#050507; }
+  html { scroll-behavior:smooth; }
+  body { font-family:'Space Grotesk', sans-serif; -webkit-font-smoothing:antialiased; text-rendering:geometricPrecision; overflow-x:hidden; }
+  ::selection { background:#ff3d68; color:#fff; }
+
+  :root {
+    --s: min(100vw / 1505, 100vh / 700);
+    --human: #23e0c4;
+    --violet: #8f6bff;
+    --gold: #ffcf3f;
+    --ai: #ff3d68;
+    --ink: #fff;
+    --sub: #d9dce3;
+    --lab: #8b8fa3;
+    --panel: rgba(9,9,13,.72);
+    --hair: rgba(255,255,255,.1);
+    --bx:60; --by:35; --bs:45;
+    --h1y: -12.5;
+    --suby: 176;
+  }
+  @media (max-width:1023px) and (max-aspect-ratio:1/1) {
+    :root{ --s: clamp(0.82px, min(100vw / 900, 100vh / 1200), 1.25px); --bx:56; --by:33; --bs:40; --h1y:-10.25; --suby:144; }
+  }
+  @media (max-width:599px) {
+    :root{ --s: min(100vw / 430, 100vh / 620, 1.02px); --bx:26; --by:21; --bs:34; --h1y:-7.1; --suby:112; }
+  }
+  @media (prefers-reduced-motion: reduce){ html { scroll-behavior:auto; } }
+
+  .svgdefs { position:absolute; width:0; height:0; overflow:hidden; }
+
+  .screen { position:fixed; inset:0; overflow:hidden; background:#050507; z-index:0; }
+  .bg, .bg2 { position:absolute; inset:0; overflow:hidden; pointer-events:none; }
+  .bg { filter:url(#grade); }
+  .bg video, .bg2 video { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:center top; display:block; }
+  .bg2 {
+    filter:url(#grade2); mix-blend-mode:plus-lighter; opacity:.32;
+    -webkit-mask-image:linear-gradient(180deg, transparent 21.5%, #000 100%);
+    mask-image:linear-gradient(180deg, transparent 21.5%, #000 100%);
+  }
+  .scrim { position:absolute; inset:0; display:none; pointer-events:none; }
+  @media (max-width:1023px) and (max-aspect-ratio:1/1) {
+    .bg2 { display:none; }
+    .bg video { object-position:right top; transform:scale(1.18); transform-origin:right top; }
+    .bg { -webkit-mask-image:linear-gradient(180deg,#000 0 40%, transparent 64%); mask-image:linear-gradient(180deg,#000 0 40%, transparent 64%); }
+    .scrim { display:block; background:linear-gradient(100deg,#000 26%, rgba(0,0,0,.74) 50%, rgba(0,0,0,.18) 76%, transparent 92%); }
+  }
+  @media (max-width:599px) {
+    .bg video, .bg2 video { object-position:78% top; }
+    .bg2 { display:block; -webkit-mask-image:linear-gradient(180deg, transparent 10%, #000 60%); mask-image:linear-gradient(180deg, transparent 10%, #000 60%); }
+    .scrim { display:block; background:linear-gradient(180deg, rgba(0,0,0,.10) 0%, rgba(0,0,0,.50) 24%, rgba(0,0,0,.86) 42%, #000 66%); }
+  }
+  .spectro { position:absolute; inset:0; opacity:.5; pointer-events:none; mix-blend-mode:screen; }
+  .spectro canvas { width:100%; height:100%; display:block; }
+  .depth-fade { position:absolute; inset:0; background:linear-gradient(180deg, transparent 0%, transparent 62%, rgba(5,5,7,.55) 78%, #050507 100%); pointer-events:none; }
+
+  .page { position:relative; z-index:2; }
+
+  .hero-viewport { position:relative; height:100svh; min-height:560px; display:flex; flex-direction:column; }
+  header { position:relative; height:calc(105 * var(--s)); flex:0 0 auto; }
+  .logo { position:absolute; left:calc(var(--bx) * var(--s)); top:calc(var(--by) * var(--s) + 2 * var(--s)); width:calc(var(--bs) * var(--s)); height:calc(var(--bs) * var(--s)); }
+  .logo svg { width:100%; height:100%; display:block; }
+  .logo .bar { fill:none; stroke-linecap:round; }
+  .logo .human { stroke:var(--human); }
+  .logo .ai { stroke:var(--ai); }
+
+  nav { position:absolute; left:calc(482 * var(--s)); top:calc(32 * var(--s)); height:calc(58 * var(--s)); display:flex; align-items:center; font-family:'JetBrains Mono',monospace; font-size:calc(19.9 * var(--s)); color:#fff; }
+  nav a { color:#fff; text-decoration:none; display:inline-flex; align-items:center; gap:calc(4*var(--s)); opacity:.92; }
+  nav a:not(:first-child) { margin-left:calc(40 * var(--s)); }
+  nav a:nth-child(2) { margin-left:calc(53 * var(--s)); }
+  nav a:nth-child(4) { margin-left:calc(37 * var(--s)); }
+  nav .chev { width:calc(11.6*var(--s)); height:calc(7.2*var(--s)); margin-top:calc(-2.6*var(--s)); }
+  @media (hover:hover){ nav a:hover { color:var(--human); } }
+
+  .btn { position:absolute; display:inline-flex; align-items:center; background:var(--ai); color:#fff; text-decoration:none; font-family:'Space Grotesk',sans-serif; font-weight:480; letter-spacing:-0.62px; white-space:nowrap; border:0; cursor:pointer; }
+  .btn-top { left:calc(1232*var(--s)); top:calc(30*var(--s)); width:calc(212*var(--s)); height:calc(58*var(--s)); padding:0 calc(22*var(--s)) 0 calc(18*var(--s)); gap:calc(11*var(--s)); font-size:calc(20.85*var(--s)); }
+  .btn-cta { position:static; width:calc(230*var(--s)); height:calc(58*var(--s)); padding:0 calc(22*var(--s)) 0 calc(18*var(--s)); gap:calc(11*var(--s)); font-size:calc(20.85*var(--s)); margin-top:calc(30*var(--s)); }
+  .btn .arr { width:calc(21.5*var(--s)); height:calc(18*var(--s)); stroke:#fff; stroke-width:2; fill:none; transform:translateY(1.5px); transition:transform .25s; }
+  @media (hover:hover){ .btn:hover { background:#d81f4a; } .btn:hover .arr { transform:translateX(3px); } }
+  @media (max-width:1023px) and (max-aspect-ratio:1/1) {
+    .btn-top, .btn-cta { width:calc(200*var(--s)); height:calc(47.6*var(--s)); padding:0 calc(18*var(--s)) 0 calc(14.8*var(--s)); gap:calc(9*var(--s)); font-size:calc(17.1*var(--s)); }
+  }
+  @media (max-width:599px) {
+    .btn-top { display:none; }
+    .btn-cta { width:calc(212*var(--s)); height:calc(50*var(--s)); padding:0 calc(19.1*var(--s)) 0 calc(15.7*var(--s)); gap:calc(9.6*var(--s)); font-size:calc(17.5*var(--s)); }
+  }
+
+  .burger { display:none; position:absolute; right:calc(56*var(--s)); top:calc(38*var(--s)); width:calc(30*var(--s)); height:calc(30*var(--s)); background:none; border:0; cursor:pointer; padding:0; z-index:5; }
+  .burger span { position:absolute; left:0; right:0; height:calc(2*var(--s)); background:#fff; transition:transform .3s, opacity .3s, width .3s; }
+  .burger span:nth-child(1){ top:calc(6*var(--s)); }
+  .burger span:nth-child(2){ top:calc(14*var(--s)); }
+  .burger span:nth-child(3){ top:calc(22*var(--s)); width:47%; }
+  body.nav-open .burger span:nth-child(1){ top:calc(14*var(--s)); transform:rotate(45deg); }
+  body.nav-open .burger span:nth-child(2){ opacity:0; }
+  body.nav-open .burger span:nth-child(3){ top:calc(14*var(--s)); width:100%; transform:rotate(-45deg); }
+  @media (max-width:1023px){ nav, .btn-top { display:none; } .burger { display:block; } }
+
+  .sp { flex:239 1 0%; } .sp-b { flex-grow:194; } .sp-c { flex-grow:75; }
+  @media (max-width:1023px) and (max-aspect-ratio:1/1){ .sp{flex-grow:340;} .sp-b{flex-grow:276;} .sp-c{flex-grow:110;} }
+  @media (max-width:599px){ .sp{flex-grow:106;} .sp-b{flex-grow:92;} .sp-c{flex-grow:40;} }
+
+  .hero { position:relative; flex:0 0 auto; display:flex; flex-direction:column; padding:0 calc(48*var(--s)) 0 calc(73*var(--s)); }
+  h1 { position:static; margin:calc(var(--h1y)*var(--s)) 0 0 0; font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:calc(68.7*var(--s)); line-height:calc(76*var(--s)); letter-spacing:-2.4px; color:#fff; }
+  h1 .ln { display:block; overflow:hidden; padding-bottom:calc(6*var(--s)); margin-bottom:calc(-6*var(--s)); }
+  h1 .ln span { display:inline-block; }
+  h1 .accent-ai { color:var(--ai); }
+  .sub { position:static; max-width:calc(560*var(--s)); font-family:'JetBrains Mono',monospace; font-size:calc(18.7*var(--s)); line-height:calc(26*var(--s)); letter-spacing:-0.87px; color:var(--sub); margin:calc(26*var(--s)) 0 0 0; }
+
+  .stats { position:relative; flex:0 0 auto; height:calc(90*var(--s)); }
+  .stat { position:absolute; top:0; }
+  .stat .num { font-family:'JetBrains Mono',monospace; font-weight:480; font-size:calc(33.45*var(--s)); color:#fff; }
+  .stat .lab { font-family:'Space Grotesk',sans-serif; font-weight:400; font-size:calc(21.9*var(--s)); letter-spacing:-0.62px; color:var(--lab); margin-top:calc(6*var(--s)); }
+  .s1 { left:calc(70.4*var(--s)); } .s2 { left:calc(213.1*var(--s)); } .s3 { left:calc(392.6*var(--s)); }
+  .rule { position:absolute; top:calc(-6*var(--s)); width:calc(1.5*var(--s)); height:calc(78*var(--s)); background:linear-gradient(180deg, rgba(255,255,255,.085), rgba(255,255,255,.21) 50%, rgba(255,255,255,.085)); }
+  .r1 { left:calc(181*var(--s)); } .r2 { left:calc(356*var(--s)); }
+
+  .scroll-cue { position:absolute; left:50%; bottom:calc(14*var(--s)); transform:translateX(-50%); display:flex; flex-direction:column; align-items:center; gap:8px; font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.2em; text-transform:uppercase; color:var(--lab); text-decoration:none; }
+  .scroll-cue svg { width:14px; height:14px; stroke:var(--lab); animation:bob 1.8s ease-in-out infinite; }
+  @keyframes bob { 0%,100%{transform:translateY(0);} 50%{transform:translateY(5px);} }
+  @media (max-width:599px){ .scroll-cue{ display:none; } }
+
+  main { position:relative; }
+  .section { position:relative; padding:clamp(64px,10vw,120px) clamp(24px,6vw,88px); max-width:1400px; margin:0 auto; }
+  .section-head { max-width:720px; margin-bottom:clamp(36px,5vw,64px); }
+  .eyebrow-tag { display:inline-flex; align-items:center; gap:8px; font-family:'JetBrains Mono',monospace; font-size:12px; letter-spacing:.24em; text-transform:uppercase; color:var(--lab); margin-bottom:16px; }
+  .eyebrow-tag .dot { width:6px; height:6px; border-radius:50%; background:var(--accent,var(--human)); box-shadow:0 0 12px var(--accent,var(--human)); }
+  .section h2 { font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:clamp(32px,4.2vw,52px); letter-spacing:-1.5px; color:#fff; margin:0 0 14px; line-height:1.08; }
+  .section p.lede { font-family:'JetBrains Mono',monospace; font-size:clamp(15px,1.4vw,18px); line-height:1.6; color:var(--sub); margin:0; letter-spacing:-.3px; }
+  .reveal { opacity:0; transform:translateY(22px); transition:opacity .7s cubic-bezier(.22,1,.36,1), transform .7s cubic-bezier(.22,1,.36,1); }
+  .reveal.in { opacity:1; transform:translateY(0); }
+
+  .pipeline-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:14px; }
+  .stage { background:var(--panel); backdrop-filter:blur(18px) saturate(140%); -webkit-backdrop-filter:blur(18px) saturate(140%); border:1px solid var(--hair); border-left:3px solid var(--accent); padding:22px 22px 20px; }
+  .stage .n { font-family:'JetBrains Mono',monospace; font-size:13px; color:var(--accent); letter-spacing:.1em; }
+  .stage h3 { font-family:'Space Grotesk',sans-serif; font-weight:500; font-size:19px; color:#fff; margin:8px 0 8px; letter-spacing:-.3px; }
+  .stage p { font-family:'JetBrains Mono',monospace; font-size:13.6px; line-height:1.55; color:var(--lab); margin:0; }
+  .stage code { color:var(--sub); background:rgba(255,255,255,.06); padding:1px 5px; border-radius:3px; font-size:12.6px; }
+  .group-label { font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.2em; text-transform:uppercase; color:var(--accent); margin:34px 0 12px; opacity:.85; }
+  .group-label:first-child { margin-top:0; }
+
+  .model-wrap { display:grid; grid-template-columns:1.1fr 1fr; gap:56px; align-items:start; }
+  @media (max-width:900px){ .model-wrap { grid-template-columns:1fr; gap:40px; } }
+  .conv-stack { display:flex; flex-direction:column; gap:10px; }
+  .conv-block { position:relative; height:52px; border:1px solid var(--hair); background:linear-gradient(90deg, rgba(255,207,63,.14), rgba(255,207,63,.02)); display:flex; align-items:center; padding:0 18px; font-family:'JetBrains Mono',monospace; font-size:13px; color:var(--sub); }
+  .conv-block b { color:var(--gold); font-weight:500; margin-right:10px; }
+  .conv-block .ch { margin-left:auto; color:var(--lab); }
+  .pool-classify { margin-top:4px; height:52px; border:1px dashed rgba(255,61,104,.4); background:rgba(255,61,104,.06); display:flex; align-items:center; padding:0 18px; font-family:'JetBrains Mono',monospace; font-size:13px; color:var(--sub); }
+  .pool-classify b { color:var(--ai); font-weight:500; margin-right:10px; }
+
+  .spec-table { width:100%; border-collapse:collapse; font-family:'JetBrains Mono',monospace; font-size:13.6px; }
+  .spec-table tr { border-bottom:1px solid var(--hair); }
+  .spec-table td { padding:11px 4px; }
+  .spec-table td:first-child { color:var(--lab); }
+  .spec-table td:last-child { color:#fff; text-align:right; }
+
+  .run-wrap { display:grid; grid-template-columns:1fr 1fr; gap:40px; }
+  @media (max-width:900px){ .run-wrap { grid-template-columns:1fr; } }
+  .code-card { background:var(--panel); backdrop-filter:blur(18px) saturate(140%); -webkit-backdrop-filter:blur(18px) saturate(140%); border:1px solid var(--hair); padding:0; overflow:hidden; }
+  .code-card .bar { display:flex; align-items:center; gap:7px; padding:12px 16px; border-bottom:1px solid var(--hair); }
+  .code-card .bar span { width:9px; height:9px; border-radius:50%; background:rgba(255,255,255,.16); }
+  .code-card .bar .label { margin-left:auto; font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--lab); letter-spacing:.1em; }
+  .code-card pre { margin:0; padding:20px; font-family:'JetBrains Mono',monospace; font-size:13.2px; line-height:1.75; color:var(--human); overflow-x:auto; }
+  .code-card pre .c1 { color:var(--lab); }
+  .code-card pre .c2 { color:#fff; }
+
+  .demo-card { background:var(--panel); backdrop-filter:blur(18px) saturate(140%); -webkit-backdrop-filter:blur(18px) saturate(140%); border:1px solid var(--hair); padding:24px; display:flex; flex-direction:column; }
+  .demo-card .demo-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; }
+  .demo-card .demo-title { font-family:'Space Grotesk',sans-serif; font-weight:500; font-size:17px; color:#fff; }
+  .demo-card .demo-flag { font-family:'JetBrains Mono',monospace; font-size:10.5px; letter-spacing:.16em; text-transform:uppercase; color:var(--lab); border:1px solid var(--hair); padding:3px 8px; }
+  .dropzone { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; text-align:center; border:1.5px dashed var(--hair); padding:26px 16px; cursor:pointer; color:var(--lab); transition:border-color .2s, background .2s, color .2s; margin-bottom:14px; }
+  .dropzone:hover, .dropzone.drag { border-color:var(--human); color:var(--sub); background:rgba(35,224,196,.05); }
+  .dropzone .dz-icon { width:22px; height:22px; stroke:currentColor; margin-bottom:2px; }
+  .dropzone .dz-text { font-family:'Space Grotesk',sans-serif; font-size:14.5px; color:#fff; letter-spacing:-.2px; }
+  .dropzone .dz-sub { font-family:'JetBrains Mono',monospace; font-size:11.5px; letter-spacing:.06em; color:var(--lab); }
+
+  .record-divider { display:flex; align-items:center; gap:10px; margin:2px 0 14px; }
+  .record-divider::before, .record-divider::after { content:''; flex:1; height:1px; background:var(--hair); }
+  .record-divider span { font-family:'JetBrains Mono',monospace; font-size:10.5px; letter-spacing:.16em; text-transform:uppercase; color:var(--lab); }
+
+  .record-panel { display:flex; align-items:center; gap:14px; border:1px solid var(--hair); padding:14px 16px; margin-bottom:14px; }
+  .record-btn { position:relative; flex:0 0 auto; width:44px; height:44px; border-radius:50%; border:1.5px solid var(--hair); background:transparent; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:border-color .2s, background .2s; }
+  .record-btn:hover { border-color:var(--ai); }
+  .record-btn .record-dot { width:16px; height:16px; border-radius:50%; background:var(--ai); transition:border-radius .2s, transform .2s; }
+  .record-btn.recording { border-color:var(--ai); background:rgba(255,61,104,.08); }
+  .record-btn.recording .record-dot { border-radius:4px; transform:scale(.72); }
+  .record-btn.recording::before { content:''; position:absolute; inset:-4px; border-radius:50%; border:1.5px solid var(--ai); opacity:.55; animation:record-pulse 1.4s ease-out infinite; }
+  @keyframes record-pulse { 0%{ transform:scale(.85); opacity:.55; } 100%{ transform:scale(1.35); opacity:0; } }
+  .record-btn:disabled { opacity:.4; cursor:default; }
+  .record-btn:disabled::before { animation:none; }
+  .record-info { display:flex; flex-direction:column; gap:2px; }
+  .record-status { font-family:'Space Grotesk',sans-serif; font-size:14px; color:#fff; letter-spacing:-.2px; }
+  .record-timer { font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--lab); }
+  @media (prefers-reduced-motion: reduce){ .record-btn.recording::before { animation:none; } }
+
+  .audio-meta { margin-bottom:14px; }
+  .audio-meta .meta-row { display:flex; flex-wrap:wrap; gap:10px; font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--lab); margin-bottom:8px; }
+  .audio-meta .meta-row span:first-child { color:#fff; }
+  .audio-meta audio { width:100%; height:32px; }
+
+  .spec-wrap { margin-bottom:14px; border:1px solid var(--hair); background:#020203; }
+  .spec-labels { display:flex; justify-content:space-between; padding:6px 9px; font-family:'JetBrains Mono',monospace; font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--lab); border-bottom:1px solid var(--hair); }
+  #melCanvas { display:block; width:100%; height:150px; }
+
+  .stagebar { display:flex; gap:4px; margin-bottom:16px; }
+  .stagebar i { flex:1; height:4px; background:rgba(255,255,255,.08); transition:background .25s; }
+  .stagebar i.done { background:var(--human); }
+  .demo-log { font-family:'JetBrains Mono',monospace; font-size:12.6px; color:var(--lab); line-height:1.6; }
+  .demo-log .cur { color:#fff; }
+  .demo-result { margin-top:14px; display:flex; align-items:baseline; gap:12px; font-family:'JetBrains Mono',monospace; }
+  .demo-result .verdict { font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:26px; letter-spacing:-1px; }
+  .demo-result .verdict.human { color:var(--human); }
+  .demo-result .verdict.ai { color:var(--ai); }
+  .demo-result .score { color:var(--lab); font-size:13px; }
+  .demo-run-btn { margin-top:auto; padding-top:18px; }
+  .ghost-btn { display:inline-flex; align-items:center; gap:10px; background:transparent; border:1px solid var(--hair); color:#fff; font-family:'Space Grotesk',sans-serif; font-weight:480; font-size:14.5px; padding:13px 20px; cursor:pointer; letter-spacing:-.3px; transition:border-color .2s, background .2s; }
+  .ghost-btn:hover { border-color:var(--human); background:rgba(35,224,196,.06); }
+  .ghost-btn:disabled { opacity:.45; cursor:default; }
+  .disclaimer { font-family:'JetBrains Mono',monospace; font-size:11.5px; color:var(--lab); margin-top:12px; line-height:1.6; }
+
+  footer.section { padding-top:40px; padding-bottom:56px; border-top:1px solid var(--hair); }
+  .foot-wrap { display:flex; flex-wrap:wrap; justify-content:space-between; gap:32px; align-items:flex-end; }
+  .foot-left .foot-logo { display:flex; align-items:center; gap:12px; margin-bottom:10px; }
+  .foot-left .foot-logo svg { width:30px; height:30px; }
+  .foot-left .foot-name { font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:17px; color:#fff; letter-spacing:-.4px; }
+  .foot-left p { font-family:'JetBrains Mono',monospace; font-size:12.6px; color:var(--lab); max-width:340px; line-height:1.6; margin:0; }
+  .foot-links { display:flex; gap:44px; flex-wrap:wrap; }
+  .foot-col h4 { font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.18em; text-transform:uppercase; color:var(--lab); margin:0 0 12px; }
+  .foot-col a { display:block; font-family:'Space Grotesk',sans-serif; font-size:14.5px; color:var(--sub); text-decoration:none; margin-bottom:9px; letter-spacing:-.2px; }
+  @media (hover:hover){ .foot-col a:hover { color:var(--human); } }
+  .foot-bottom { margin-top:44px; padding-top:20px; border-top:1px solid var(--hair); display:flex; justify-content:space-between; flex-wrap:wrap; gap:10px; font-family:'JetBrains Mono',monospace; font-size:11.5px; color:var(--lab); }
+
+  .menu { position:fixed; inset:0; background:#050507; z-index:10; display:flex; flex-direction:column; visibility:hidden; opacity:0; transition:opacity .35s, visibility 0s .35s; }
+  body.nav-open .menu { visibility:visible; opacity:1; transition:opacity .35s; }
+  .menu-tex { position:absolute; inset:0; overflow:hidden; opacity:.4; -webkit-mask-image:linear-gradient(180deg,#000, transparent 70%); mask-image:linear-gradient(180deg,#000, transparent 70%); }
+  .menu-tex video { width:100%; height:100%; object-fit:cover; filter:url(#grade); }
+  .menu-rule { position:relative; height:2px; background:var(--ai); transform:scaleX(0); transform-origin:left; transition:transform .55s cubic-bezier(.2,.7,.2,1) .04s; margin-top:calc(90*var(--s)); }
+  body.nav-open .menu-rule { transform:scaleX(1); }
+  .menu-inner { position:relative; padding:calc(28*var(--s)) calc(30*var(--s)) calc(30*var(--s)); flex:1; display:flex; flex-direction:column; overflow-y:auto; }
+  .eyebrow { font-family:'JetBrains Mono',monospace; font-size:11.5px; letter-spacing:.22em; text-transform:uppercase; color:var(--lab); margin:calc(18*var(--s)) 0 calc(6*var(--s)); }
+  .mrow { font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:calc(38*var(--s)); color:#fff; padding:calc(12*var(--s)) 0; border-bottom:1px solid rgba(255,255,255,.1); opacity:0; transform:translateY(14px); transition:opacity .5s, transform .5s; cursor:pointer; display:flex; justify-content:space-between; align-items:center; text-decoration:none; }
+  body.nav-open .mrow { opacity:1; transform:translateY(0); }
+  body.nav-open .mrow:nth-child(1){transition-delay:.08s;}
+  body.nav-open .mrow:nth-child(2){transition-delay:.14s;}
+  body.nav-open .mrow:nth-child(3){transition-delay:.20s;}
+  body.nav-open .mrow:nth-child(4){transition-delay:.26s;}
+  .sublinks { max-height:0; overflow:hidden; transition:max-height .4s ease; }
+  .msub.open .sublinks { max-height:260px; }
+  .sublinks a { display:block; font-family:'JetBrains Mono',monospace; font-size:calc(17*var(--s)); color:var(--sub); text-decoration:none; padding:calc(9*var(--s)) 0 calc(9*var(--s)) calc(6*var(--s)); }
+  @media (hover:hover){ .sublinks a:hover { color:var(--human); } }
+  .mrow .chev { width:14px; height:14px; stroke:#fff; stroke-width:1.7; fill:none; transition:transform .3s; }
+  .msub.open .mrow .chev { transform:rotate(180deg); }
+  .menu-foot { margin-top:auto; padding-top:calc(24*var(--s)); }
+  .btn-menu { position:static; width:100%; justify-content:center; height:calc(58*var(--s)); font-size:calc(19*var(--s)); }
+  .menu-note { font-family:'JetBrains Mono',monospace; font-size:13px; color:var(--lab); text-align:center; margin-top:calc(14*var(--s)); }
+
+  html.intro .logo, html.intro nav a, html.intro .burger, html.intro .sub, html.intro .stat .num, html.intro .stat .lab { opacity:0; }
+  html.intro .logo { transform:scale(.9); }
+  html.intro nav a { transform:translateY(7px); }
+  html.intro .sub { transform:translateY(14px); }
+  html.intro .stat .num { transform:translateY(12px); }
+  html.intro .stat .lab { transform:translateY(10px); }
+  html.intro .rule { transform:scaleY(0); }
+  html.intro .btn-top, html.intro .btn-cta { clip-path:inset(0 100% 0 0); }
+  html.intro h1 .ln span { transform:translateY(120%); }
+
+  :focus-visible { outline:2px solid #fff; outline-offset:3px; }
+  @media (prefers-reduced-motion: reduce){ * { transition:none !important; animation:none !important; } .reveal { opacity:1 !important; transform:none !important; } }
+</style>
+</head>
+<body>
+
+<svg class="svgdefs" aria-hidden="true">
+  <defs>
+    <filter id="grade" color-interpolation-filters="sRGB">
+      <feComponentTransfer>
+        <feFuncR type="table" tableValues="0.0018 0.0105 0.0154 0.0228 0.0307 0.0404 0.0485 0.0585 0.0719 0.0923 0.1205 0.1466 0.1657 0.1866 0.2197 0.2405 0.2485 0.2921 0.3362 0.3465 0.3472 0.3781 0.3781 0.4078 0.4199 0.4391 0.4604 0.4763 0.4798 0.5197 0.5473 0.5720 0.5995 0.6048 0.6232 0.6322 0.6483 0.6734 0.7201 0.7201 0.7410 0.7707 0.7707 0.7790 0.8084 0.8084 0.8390 0.8595 0.8707 0.8870 0.8993 0.9085 0.9132 0.9132 0.9162 0.9162 0.9162 0.9162 0.9162 0.9162 0.9162 0.9162 0.9162 0.9238 0.9300"/>
+        <feFuncG type="table" tableValues="0.0023 0.0106 0.0159 0.0250 0.0333 0.0445 0.0535 0.0620 0.0707 0.0827 0.0936 0.1063 0.1214 0.1402 0.1678 0.1727 0.2029 0.2176 0.2461 0.2757 0.2814 0.3050 0.3415 0.3692 0.3826 0.3884 0.4617 0.4617 0.4617 0.4643 0.4643 0.4808 0.5706 0.6005 0.6005 0.6390 0.6390 0.6390 0.6390 0.6390 0.6390 0.6390 0.6390 0.6390 0.6524 0.6664 0.6805 0.6945 0.7086 0.7227 0.7367 0.7508 0.7648 0.7789 0.7929 0.8070 0.8211 0.8351 0.8492 0.8632 0.8773 0.8913 0.9054 0.9195 0.9300"/>
+        <feFuncB type="table" tableValues="0.0021 0.0110 0.0187 0.0311 0.0377 0.0466 0.0584 0.0706 0.0791 0.0924 0.1039 0.1145 0.1316 0.1464 0.1614 0.1719 0.1887 0.2014 0.2247 0.2458 0.2954 0.2954 0.3089 0.3938 0.3938 0.3988 0.3988 0.4581 0.4581 0.4762 0.4762 0.4763 0.5374 0.5560 0.5813 0.5813 0.5813 0.5813 0.5835 0.5969 0.6104 0.6238 0.6373 0.6507 0.6642 0.6777 0.6911 0.7046 0.7181 0.7315 0.7449 0.7584 0.7719 0.7853 0.7988 0.8123 0.8257 0.8391 0.8526 0.8661 0.8795 0.8930 0.9065 0.9199 0.9300"/>
+      </feComponentTransfer>
+    </filter>
+    <filter id="grade2" color-interpolation-filters="sRGB">
+      <feComponentTransfer>
+        <feFuncR type="table" tableValues="0.0016 0.0092 0.0136 0.0201 0.0270 0.0356 0.0427 0.0515 0.0633 0.0812 0.1060 0.1290 0.1458 0.1642 0.1933 0.2116 0.2187 0.2570 0.2959 0.3049 0.3055 0.3327 0.3327 0.3589 0.3695 0.3864 0.4052 0.4191 0.4222 0.4573 0.4816 0.5034 0.5276 0.5322 0.5484 0.5563 0.5705 0.5926 0.6337 0.6337 0.6521 0.6782 0.6782 0.6855 0.7114 0.7114 0.7383 0.7564 0.7662 0.7806 0.7914 0.7995 0.8036 0.8036 0.8063 0.8063 0.8063 0.8063 0.8063 0.8063 0.8063 0.8063 0.8063 0.8129 0.8184"/>
+        <feFuncG type="table" tableValues="0.0015 0.0069 0.0103 0.0163 0.0216 0.0289 0.0348 0.0403 0.0460 0.0538 0.0608 0.0691 0.0789 0.0911 0.1091 0.1123 0.1319 0.1414 0.1600 0.1792 0.1829 0.1983 0.2220 0.2400 0.2487 0.2525 0.3001 0.3001 0.3001 0.3018 0.3018 0.3125 0.3709 0.3903 0.3903 0.4153 0.4153 0.4153 0.4153 0.4153 0.4153 0.4153 0.4153 0.4153 0.4241 0.4332 0.4423 0.4514 0.4606 0.4698 0.4789 0.4880 0.4971 0.5063 0.5154 0.5246 0.5337 0.5428 0.5520 0.5611 0.5702 0.5793 0.5885 0.5977 0.6045"/>
+        <feFuncB type="table" tableValues="0.0013 0.0066 0.0112 0.0187 0.0226 0.0280 0.0350 0.0424 0.0475 0.0554 0.0623 0.0687 0.0790 0.0878 0.0968 0.1031 0.1132 0.1208 0.1348 0.1475 0.1772 0.1772 0.1853 0.2363 0.2363 0.2393 0.2393 0.2749 0.2749 0.2857 0.2857 0.2858 0.3224 0.3336 0.3488 0.3488 0.3488 0.3488 0.3501 0.3581 0.3662 0.3743 0.3824 0.3904 0.3985 0.4066 0.4147 0.4228 0.4309 0.4389 0.4469 0.4550 0.4631 0.4712 0.4793 0.4874 0.4954 0.5035 0.5116 0.5197 0.5277 0.5358 0.5439 0.5519 0.5580"/>
+      </feComponentTransfer>
+    </filter>
+  </defs>
+</svg>
+
+<div class="screen" aria-hidden="true">
+  <div class="bg"><video src="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260809_132544_b6ef0174-ed95-45ad-9a2f-ccb8acfbdce8.mp4" autoplay muted loop playsinline preload="auto"></video></div>
+  <div class="bg2"><video src="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260809_132544_b6ef0174-ed95-45ad-9a2f-ccb8acfbdce8.mp4" autoplay muted loop playsinline preload="auto"></video></div>
+  <div class="scrim"></div>
+  <div class="spectro"><canvas id="specCanvas"></canvas></div>
+  <div class="depth-fade"></div>
+</div>
+
+<div class="page">
+  <div class="hero-viewport">
+    <header>
+      <div class="logo" aria-hidden="true">
+        <svg viewBox="0 0 46 46" fill="none">
+          <g class="bar human" stroke-width="3">
+            <path d="M6 23H14M6 23L11 18M6 23L11 28"/>
+            <path d="M40 23H32M40 23L35 18M40 23L35 28"/>
+          </g>
+          <g class="bar ai" stroke-width="3">
+            <path d="M23 6V14M23 6L18 11M23 6L28 11"/>
+            <path d="M23 40V32M23 40L18 35M23 40L28 35"/>
+          </g>
+        </svg>
+      </div>
+
+      <nav aria-label="Primary">
+        <a href="#top">Home</a>
+        <a href="#pipeline">Pipeline<svg class="chev" viewBox="0 0 11 6"><path d="M1 1L5.5 5L10 1" stroke="currentColor" stroke-width="1.7" fill="none"/></svg></a>
+        <a href="#model">Model<svg class="chev" viewBox="0 0 11 6"><path d="M1 1L5.5 5L10 1" stroke="currentColor" stroke-width="1.7" fill="none"/></svg></a>
+        <a href="#contact">Contact</a>
+      </nav>
+
+      <a href="#run" class="btn btn-top">
+        Run Detection
+        <svg class="arr" viewBox="0 0 21 18"><path d="M0 9H20.1"/><path d="M12.1 1L20.1 9L12.1 17"/></svg>
+      </a>
+
+      <button class="burger" aria-label="Open menu" aria-expanded="false" id="burgerBtn">
+        <span></span><span></span><span></span>
+      </button>
+    </header>
+
+    <div class="sp sp-a"></div>
+
+    <section class="hero" id="top">
+      <h1>
+        <span class="ln"><span>Human voice.</span></span>
+        <span class="ln"><span>Or <span class="accent-ai">machine</span> echo?</span></span>
+      </h1>
+      <p class="sub">A convolutional network reads Mel-spectrograms in 5-second windows, scoring every chunk for signs of AI synthesis — then aggregates a verdict across the full recording.</p>
+      <a href="#run" class="btn btn-cta" id="run-anchor">
+        Run Detection
+        <svg class="arr" viewBox="0 0 21 18"><path d="M0 9H20.1"/><path d="M12.1 1L20.1 9L12.1 17"/></svg>
+      </a>
+    </section>
+
+    <div class="sp sp-b"></div>
+
+    <section class="stats" id="model-stats">
+      <div class="rule r1"></div>
+      <div class="rule r2"></div>
+      <div class="stat s1"><div class="num">128</div><div class="lab">Mel Filter Bands</div></div>
+      <div class="stat s2"><div class="num">16kHz</div><div class="lab">Sample Rate</div></div>
+      <div class="stat s3"><div class="num">4-Stage</div><div class="lab">CNN Pipeline</div></div>
+    </section>
+
+    <div class="sp sp-c"></div>
+
+    <a href="#pipeline" class="scroll-cue">
+      Scroll
+      <svg viewBox="0 0 14 14" fill="none"><path d="M2 5L7 10L12 5" stroke-width="1.6"/></svg>
+    </a>
+  </div>
+
+  <main>
+
+    <section class="section" id="pipeline">
+      <div class="section-head reveal">
+        <div class="eyebrow-tag" style="--accent:var(--human)"><span class="dot"></span>Dataflow — Ten Stages</div>
+        <h2>Every recording takes the same road.</h2>
+        <p class="lede">From raw audio bytes to a HUMAN / AI verdict, each stage is deterministic and testable in isolation — the exact sequence implemented in <code>preprocessing.py</code>, <code>features.py</code>, <code>model.py</code>, and <code>infer.py</code>.</p>
+      </div>
+
+      <div class="group-label reveal" style="--accent:var(--human)">Signal — audio_input · preprocessing · chunking</div>
+      <div class="pipeline-grid">
+        <div class="stage reveal" style="--accent:var(--human)"><div class="n">01</div><h3>Audio Input</h3><p>Decode <code>.wav / .mp3 / .flac / .m4a / .ogg</code>, resample to <code>16kHz</code>, fold to mono.</p></div>
+        <div class="stage reveal" style="--accent:var(--human)"><div class="n">02</div><h3>Preprocessing</h3><p>Trim long silent stretches with <code>librosa.effects.trim</code> at a <code>30dB</code> threshold.</p></div>
+        <div class="stage reveal" style="--accent:var(--human)"><div class="n">03</div><h3>Chunking</h3><p>Fixed <code>5.0s</code> windows, <code>0.5</code> overlap fraction, zero-padded when a clip runs short.</p></div>
+      </div>
+
+      <div class="group-label reveal" style="--accent:var(--violet)">Spectral — fft · mel filter bank · normalization</div>
+      <div class="pipeline-grid">
+        <div class="stage reveal" style="--accent:var(--violet)"><div class="n">04</div><h3>FFT Analysis</h3><p>Short-time FFT, window <code>n_fft=1024</code>, hop <code>256</code> — raw frequency content per frame.</p></div>
+        <div class="stage reveal" style="--accent:var(--violet)"><div class="n">05</div><h3>Mel Filter Bank</h3><p><code>128</code> Mel bands mapped across <code>0–8kHz</code>, matching perceptual pitch spacing.</p></div>
+        <div class="stage reveal" style="--accent:var(--violet)"><div class="n">06</div><h3>Mel Spectrogram</h3><p>Power spectrogram (<code>power=2.0</code>) converted to dB — log compression for stable training.</p></div>
+        <div class="stage reveal" style="--accent:var(--violet)"><div class="n">07</div><h3>Normalization</h3><p><code>z = (x − μ) / (σ + ε)</code> — per-chunk standardization, immune to recording loudness.</p></div>
+      </div>
+
+      <div class="group-label reveal" style="--accent:var(--gold)">Learning — cnn · classification</div>
+      <div class="pipeline-grid">
+        <div class="stage reveal" style="--accent:var(--gold)"><div class="n">08</div><h3>CNN Feature Learning</h3><p>Four <code>ConvBlocks</code> (<code>16→32→64→128</code> channels) extract local-to-abstract spectrogram patterns.</p></div>
+        <div class="stage reveal" style="--accent:var(--gold)"><div class="n">09</div><h3>Classification</h3><p>Global average pool → dropout <code>0.3</code> → linear layer → HUMAN / AI logits.</p></div>
+      </div>
+
+      <div class="group-label reveal" style="--accent:var(--ai)">Verdict — aggregation</div>
+      <div class="pipeline-grid">
+        <div class="stage reveal" style="--accent:var(--ai)"><div class="n">10</div><h3>Score Aggregation</h3><p>Per-chunk AI-probabilities combine via <code>mean / median / trimmed-mean / vote</code> into one recording-level score, compared against a <code>0.5</code> decision threshold.</p></div>
+      </div>
+    </section>
+
+    <section class="section" id="model">
+      <div class="section-head reveal">
+        <div class="eyebrow-tag" style="--accent:var(--gold)"><span class="dot"></span>Architecture</div>
+        <h2>A compact CNN, treating sound as an image.</h2>
+        <p class="lede">The normalized Mel spectrogram is fed in as a single-channel image. Global average pooling keeps the classifier agnostic to chunk length or band count, so the pipeline stays flexible as <code>config.py</code> changes.</p>
+      </div>
+
+      <div class="model-wrap">
+        <div class="reveal">
+          <div class="conv-stack">
+            <div class="conv-block"><b>Input</b> 1 × 128 × T <span class="ch">normalized mel</span></div>
+            <div class="conv-block"><b>ConvBlock 1</b> Conv → BatchNorm → ReLU → MaxPool <span class="ch">16ch</span></div>
+            <div class="conv-block"><b>ConvBlock 2</b> Conv → BatchNorm → ReLU → MaxPool <span class="ch">32ch</span></div>
+            <div class="conv-block"><b>ConvBlock 3</b> Conv → BatchNorm → ReLU → MaxPool <span class="ch">64ch</span></div>
+            <div class="conv-block"><b>ConvBlock 4</b> Conv → BatchNorm → ReLU → MaxPool <span class="ch">128ch</span></div>
+            <div class="pool-classify"><b>Head</b> AdaptiveAvgPool2d → Dropout 0.3 → Linear(2)</div>
+          </div>
+        </div>
+
+        <div class="reveal">
+          <table class="spec-table">
+            <tr><td>Batch size</td><td>16</td></tr>
+            <tr><td>Optimizer</td><td>AdamW</td></tr>
+            <tr><td>Learning rate</td><td>3e-4</td></tr>
+            <tr><td>Weight decay</td><td>1e-4</td></tr>
+            <tr><td>Max epochs</td><td>20</td></tr>
+            <tr><td>Early-stop patience</td><td>5 epochs</td></tr>
+            <tr><td>Val / test split</td><td>15% / 15%</td></tr>
+            <tr><td>Split granularity</td><td>file-level</td></tr>
+            <tr><td>Seed</td><td>42</td></tr>
+            <tr><td>Evaluation</td><td>accuracy · precision · recall · F1</td></tr>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="run">
+      <div class="section-head reveal">
+        <div class="eyebrow-tag" style="--accent:var(--ai)"><span class="dot"></span>Inference</div>
+        <h2>Run it on your own audio.</h2>
+        <p class="lede">Point <code>infer.py</code> at a checkpoint and a file — it chunks, scores, and aggregates automatically, printing a per-chunk breakdown alongside the final call.</p>
+      </div>
+
+      <div class="run-wrap">
+        <div class="code-card reveal">
+          <div class="bar"><span></span><span></span><span></span><div class="label">terminal</div></div>
+          <pre><span class="c1"># install dependencies</span>
+pip install -r requirements.txt
+
+<span class="c1"># train on your own labeled dataset</span>
+python train.py --data_root ./data --out model.pt
+
+<span class="c1"># score a single recording</span>
+python infer.py --model model.pt --audio sample.wav
+
+<span class="c2">File: sample.wav
+Prediction: AI  (AI score: 0.812, confidence: 0.812)
+Chunks analyzed: 6
+Per-chunk AI scores: [0.71, 0.79, 0.85, 0.88, 0.8, 0.84]</span></pre>
+        </div>
+
+        <div class="demo-card reveal">
+          <div class="demo-head">
+            <div class="demo-title">Analyze your audio</div>
+            <div class="demo-flag">server-side</div>
+          </div>
+
+          <label class="dropzone" id="dropzone" for="audioInput">
+            <input type="file" id="audioInput" accept="audio/*" hidden>
+            <svg class="dz-icon" viewBox="0 0 24 24" fill="none"><path d="M12 16V4M12 4L7 9M12 4L17 9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 16V18C4 19.1 4.9 20 6 20H18C19.1 20 20 19.1 20 18V16" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+            <span class="dz-text" id="dzText">Drop an audio file, or click to browse</span>
+            <span class="dz-sub">wav · mp3 · flac · m4a · ogg</span>
+          </label>
+
+          <div class="record-divider"><span>or</span></div>
+
+          <div class="record-panel">
+            <button type="button" class="record-btn" id="recordBtn" aria-label="Start recording">
+              <span class="record-dot"></span>
+            </button>
+            <div class="record-info">
+              <div class="record-status" id="recordStatus">Record from your microphone</div>
+              <div class="record-timer" id="recordTimer">0:00</div>
+            </div>
+          </div>
+
+          <div class="audio-meta" id="audioMeta" style="display:none;">
+            <div class="meta-row">
+              <span id="metaName"></span>
+              <span id="metaDur"></span>
+              <span id="metaSr"></span>
+            </div>
+            <audio id="audioPlayer" controls></audio>
+          </div>
+
+          <div class="spec-wrap" id="specWrap" style="display:none;">
+            <div class="spec-labels"><span>Mel spectrogram</span><span id="specDurLabel"></span></div>
+            <img id="melImg" alt="Mel spectrogram" style="display:block;width:100%;">
+          </div>
+
+          <div class="demo-log" id="demoStatus">Upload a clip — it's sent to this Flask server, run through the real pipeline, and scored by the trained checkpoint.</div>
+
+          <div class="demo-result" id="demoResult" style="display:none;">
+            <span class="verdict" id="verdictText"></span>
+            <span class="score" id="scoreText"></span>
+          </div>
+
+          <div class="demo-run-btn">
+            <button class="ghost-btn" id="analyzeBtn" disabled>
+              Run Detection
+              <svg class="arr" viewBox="0 0 21 18" width="16" height="14"><path d="M0 9H20.1" stroke="currentColor" stroke-width="2" fill="none"/><path d="M12.1 1L20.1 9L12.1 17" stroke="currentColor" stroke-width="2" fill="none"/></svg>
+            </button>
+            <div class="disclaimer">Posted to <code>/analyze</code> on this server, which runs <code>preprocessing.py</code> → <code>features.py</code> → <code>model.py</code> (via <code>infer.py</code>'s scoring functions) against the checkpoint loaded at startup{% if model_path %} (<code>{{ model_path }}</code>){% endif %} — expects {{ sample_rate }}Hz mono, {{ n_mels }} mel bands, {{ chunk_seconds }}s chunks, <code>{{ aggregation }}</code> aggregation. Same code path as the CLI, so results match <code>infer.py</code> exactly.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <footer class="section" id="contact">
+      <div class="foot-wrap reveal">
+        <div class="foot-left">
+          <div class="foot-logo">
+            <svg viewBox="0 0 46 46" fill="none">
+              <g class="bar human" stroke-width="3"><path d="M6 23H14M6 23L11 18M6 23L11 28"/><path d="M40 23H32M40 23L35 18M40 23L35 28"/></g>
+              <g class="bar ai" stroke-width="3"><path d="M23 6V14M23 6L18 11M23 6L28 11"/><path d="M23 40V32M23 40L18 35M23 40L28 35"/></g>
+            </svg>
+            <div class="foot-name">Voice Detector</div>
+          </div>
+          <p>An open pipeline for distinguishing human speech from synthetic voice — trained on chunked Mel-spectrograms, evaluated at the file level to avoid leakage.</p>
+        </div>
+        <div class="foot-links">
+          <div class="foot-col">
+            <h4>Project</h4>
+            <a href="#pipeline">Dataflow</a>
+            <a href="#model">Architecture</a>
+            <a href="#run">Run locally</a>
+          </div>
+          <div class="foot-col">
+            <h4>Files</h4>
+            <a href="#run">train.py</a>
+            <a href="#run">infer.py</a>
+            <a href="#run">config.py</a>
+          </div>
+          <div class="foot-col">
+            <h4>Contact</h4>
+            <a href="mailto:hello@example.com">hello@example.com</a>
+            <a href="#top">Back to top</a>
+          </div>
+        </div>
+      </div>
+      <div class="foot-bottom">
+        <span>128 Mel Bands · 16kHz · 4-Stage CNN</span>
+        <span>Human vs AI Voice Detector</span>
+      </div>
+    </footer>
+  </main>
+
+  <nav class="menu" id="menu" aria-label="Mobile">
+    <div class="menu-tex"><video src="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260809_132544_b6ef0174-ed95-45ad-9a2f-ccb8acfbdce8.mp4" autoplay muted loop playsinline preload="auto"></video></div>
+    <div class="menu-inner">
+      <div class="menu-rule"></div>
+      <div class="eyebrow">Menu</div>
+      <a href="#top" class="mrow">Home</a>
+
+      <div class="msub" id="pipelineAcc">
+        <div class="mrow" tabindex="0" role="button" aria-expanded="false">
+          Pipeline
+          <svg class="chev" viewBox="0 0 11 6"><path d="M1 1L5.5 5L10 1" stroke="currentColor" fill="none"/></svg>
+        </div>
+        <div class="sublinks">
+          <a href="#pipeline">Preprocessing &amp; Chunking</a>
+          <a href="#pipeline">FFT &amp; Mel Features</a>
+          <a href="#pipeline">Score Aggregation</a>
+        </div>
+      </div>
+
+      <div class="msub" id="modelAcc">
+        <div class="mrow" tabindex="0" role="button" aria-expanded="false">
+          Model
+          <svg class="chev" viewBox="0 0 11 6"><path d="M1 1L5.5 5L10 1" stroke="currentColor" fill="none"/></svg>
+        </div>
+        <div class="sublinks">
+          <a href="#model">CNN Architecture</a>
+          <a href="#model">Training Configuration</a>
+          <a href="#run">Inference &amp; Scoring</a>
+        </div>
+      </div>
+
+      <a href="#contact" class="mrow">Contact</a>
+
+      <div class="menu-foot">
+        <a href="#run" class="btn btn-menu">
+          Run Detection
+          <svg class="arr" viewBox="0 0 21 18"><path d="M0 9H20.1"/><path d="M12.1 1L20.1 9L12.1 17"/></svg>
+        </a>
+        <div class="menu-note">128 Mel Bands&nbsp;/&nbsp;4-Stage CNN</div>
+      </div>
+    </div>
+  </nav>
+</div>
+
+<script>
+(function(){
+  var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  var burger = document.getElementById('burgerBtn');
+  burger.addEventListener('click', function(){
+    var open = document.body.classList.toggle('nav-open');
+    burger.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
+    burger.setAttribute('aria-expanded', open);
+  });
+  document.addEventListener('keydown', function(e){
+    if (e.key === 'Escape') { document.body.classList.remove('nav-open'); burger.setAttribute('aria-expanded','false'); }
+  });
+  window.addEventListener('resize', function(){
+    if (window.innerWidth > 1023) { document.body.classList.remove('nav-open'); }
+  });
+  document.querySelectorAll('.menu a[href]').forEach(function(a){
+    a.addEventListener('click', function(){ document.body.classList.remove('nav-open'); });
+  });
+  document.querySelectorAll('.msub').forEach(function(sec){
+    var row = sec.querySelector('.mrow');
+    row.addEventListener('click', function(){
+      var willOpen = !sec.classList.contains('open');
+      document.querySelectorAll('.msub').forEach(function(s){ s.classList.remove('open'); s.querySelector('.mrow').setAttribute('aria-expanded','false'); });
+      if (willOpen) { sec.classList.add('open'); row.setAttribute('aria-expanded','true'); }
+    });
+    row.addEventListener('keydown', function(e){ if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); row.click(); } });
+  });
+
+  var vids = Array.from(document.querySelectorAll('video'));
+  if (reduced) {
+    vids.forEach(function(v){ v.pause(); v.removeAttribute('autoplay'); });
+  } else if (vids.length) {
+    var master = vids[0];
+    master.addEventListener('timeupdate', function(){
+      vids.forEach(function(v){
+        if (v === master) return;
+        if (Math.abs(v.currentTime - master.currentTime) > 0.12) v.currentTime = master.currentTime;
+      });
+    });
+  }
+
+  var canvas = document.getElementById('specCanvas');
+  var ctx = canvas.getContext('2d');
+  var bands = 48, t = 0;
+  function resize(){ canvas.width = canvas.clientWidth * devicePixelRatio; canvas.height = canvas.clientHeight * devicePixelRatio; }
+  window.addEventListener('resize', resize); resize();
+  function draw(){
+    var w = canvas.width, h = canvas.height;
+    ctx.clearRect(0,0,w,h);
+    var bw = w / bands;
+    for (var i=0;i<bands;i++){
+      var human = Math.sin(t*0.6 + i*0.35) * 0.5 + 0.5;
+      var ai = Math.sin(t*0.9 - i*0.5 + 2) * 0.5 + 0.5;
+      var mix = (human + ai) / 2;
+      var bh = h * (0.06 + mix*0.22);
+      var hue = i % 2 === 0 ? '35,224,196' : '255,61,104';
+      ctx.fillStyle = 'rgba(' + hue + ',' + (0.10 + mix*0.10) + ')';
+      ctx.fillRect(i*bw, h - bh, bw*0.6, bh);
+    }
+    t += 0.02;
+    requestAnimationFrame(draw);
+  }
+  if (!reduced) draw();
+
+  var reveals = document.querySelectorAll('.reveal');
+  if ('IntersectionObserver' in window) {
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(en){ if (en.isIntersecting) { en.target.classList.add('in'); io.unobserve(en.target); } });
+    }, { threshold:.15, rootMargin:'0px 0px -6% 0px' });
+    reveals.forEach(function(el){ io.observe(el); });
+  } else {
+    reveals.forEach(function(el){ el.classList.add('in'); });
+  }
+
+  // ---- upload + server-side detection (calls Flask /analyze) ----
+  (function(){
+    var dropzone = document.getElementById('dropzone');
+    var fileInput = document.getElementById('audioInput');
+    var dzText = document.getElementById('dzText');
+    var audioMeta = document.getElementById('audioMeta');
+    var metaName = document.getElementById('metaName');
+    var metaDur = document.getElementById('metaDur');
+    var metaSr = document.getElementById('metaSr');
+    var audioPlayer = document.getElementById('audioPlayer');
+    var specWrap = document.getElementById('specWrap');
+    var specDurLabel = document.getElementById('specDurLabel');
+    var melImg = document.getElementById('melImg');
+    var status = document.getElementById('demoStatus');
+    var analyzeBtn = document.getElementById('analyzeBtn');
+    var demoResult = document.getElementById('demoResult');
+    var verdictText = document.getElementById('verdictText');
+    var scoreText = document.getElementById('scoreText');
+    if (!dropzone) return;
+
+    var currentFile = null;
+
+    function fmtTime(s){ s = Math.max(0, s|0); var m = Math.floor(s/60), r = s%60; return m + ':' + (r<10?'0':'') + r; }
+
+    function handleFile(file){
+      if (!file || !file.type.match('audio.*')) return;
+      currentFile = file;
+      dzText.textContent = file.name;
+      status.textContent = 'Ready — click "Run Detection" to send this clip to the server.';
+      specWrap.style.display = 'none';
+      demoResult.style.display = 'none';
+      analyzeBtn.disabled = false;
+
+      audioPlayer.src = URL.createObjectURL(file);
+      metaName.textContent = file.name;
+      metaDur.textContent = '';
+      metaSr.textContent = '';
+      audioMeta.style.display = 'block';
+    }
+
+    ['dragenter','dragover'].forEach(function(ev){
+      dropzone.addEventListener(ev, function(e){ e.preventDefault(); dropzone.classList.add('drag'); });
+    });
+    ['dragleave','drop'].forEach(function(ev){
+      dropzone.addEventListener(ev, function(e){ e.preventDefault(); dropzone.classList.remove('drag'); });
+    });
+    dropzone.addEventListener('drop', function(e){
+      var f = e.dataTransfer.files && e.dataTransfer.files[0];
+      if (f) handleFile(f);
+    });
+    fileInput.addEventListener('change', function(e){
+      var f = e.target.files && e.target.files[0];
+      if (f) handleFile(f);
+    });
+
+    // ---- microphone recording ----
+    var recordBtn = document.getElementById('recordBtn');
+    var recordStatus = document.getElementById('recordStatus');
+    var recordTimer = document.getElementById('recordTimer');
+    var mediaRecorder = null;
+    var recordedChunks = [];
+    var recordStream = null;
+    var recordStartTime = 0;
+    var recordIntervalId = null;
+
+    function supportsRecording(){
+      return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
+    }
+
+    function updateRecordTimer(){
+      var elapsed = (Date.now() - recordStartTime) / 1000;
+      recordTimer.textContent = fmtTime(elapsed);
+    }
+
+    function stopStream(){
+      if (recordStream) {
+        recordStream.getTracks().forEach(function(t){ t.stop(); });
+        recordStream = null;
+      }
+    }
+
+    function startRecording(){
+      navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream){
+        recordStream = stream;
+        recordedChunks = [];
+        mediaRecorder = new MediaRecorder(stream);
+
+        mediaRecorder.addEventListener('dataavailable', function(e){
+          if (e.data && e.data.size > 0) recordedChunks.push(e.data);
+        });
+
+        mediaRecorder.addEventListener('stop', function(){
+          stopStream();
+          clearInterval(recordIntervalId);
+          recordBtn.classList.remove('recording');
+          recordBtn.setAttribute('aria-label', 'Start recording');
+
+          var mimeType = mediaRecorder.mimeType || 'audio/webm';
+          var ext = mimeType.indexOf('mp4') !== -1 ? 'm4a' : 'webm';
+          var blob = new Blob(recordedChunks, { type: mimeType });
+          var file = new File([blob], 'recording.' + ext, { type: mimeType });
+
+          recordStatus.textContent = 'Recording captured';
+          recordTimer.textContent = fmtTime(0);
+          handleFile(file);
+        });
+
+        mediaRecorder.start();
+        recordStartTime = Date.now();
+        recordIntervalId = setInterval(updateRecordTimer, 250);
+
+        recordBtn.classList.add('recording');
+        recordBtn.setAttribute('aria-label', 'Stop recording');
+        recordStatus.textContent = 'Recording… click to stop';
+      }).catch(function(){
+        recordStatus.textContent = 'Microphone access denied or unavailable';
+      });
+    }
+
+    function stopRecording(){
+      if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop();
+      }
+    }
+
+    if (recordBtn) {
+      if (!supportsRecording()) {
+        recordBtn.disabled = true;
+        recordStatus.textContent = 'Microphone recording not supported in this browser';
+      } else {
+        recordBtn.addEventListener('click', function(){
+          if (recordBtn.classList.contains('recording')) {
+            stopRecording();
+          } else {
+            startRecording();
+          }
+        });
+      }
+    }
+
+    analyzeBtn.addEventListener('click', function(){
+      if (!currentFile) return;
+      analyzeBtn.disabled = true;
+      demoResult.style.display = 'none';
+      status.textContent = 'Uploading and running the pipeline on the server…';
+
+      var fd = new FormData();
+      fd.append('audio', currentFile, currentFile.name);
+
+      fetch('/analyze', { method: 'POST', body: fd })
+        .then(function(res){
+          return res.json().then(function(data){
+            if (!res.ok) throw new Error(data.error || 'Analysis failed.');
+            return data;
+          });
+        })
+        .then(function(data){
+          metaSr.textContent = data.specs.original_sample_rate + 'Hz';
+          metaDur.textContent = fmtTime(data.specs.duration_sec);
+
+          melImg.src = data.spectrogram_png;
+          specDurLabel.textContent = data.specs.duration_sec.toFixed(1) + 's · ' + data.num_chunks + ' chunk(s)';
+          specWrap.style.display = 'block';
+
+          var isAI = data.prediction === 'AI';
+          verdictText.textContent = data.prediction;
+          verdictText.className = 'verdict ' + (isAI ? 'ai' : 'human');
+          scoreText.textContent = 'AI ' + data.ai_score_pct.toFixed(1) + '% · HUMAN ' + data.human_score_pct.toFixed(1) + '% · confidence ' + data.confidence_pct.toFixed(1) + '%';
+          demoResult.style.display = 'flex';
+
+          status.textContent = data.num_chunks + ' chunk(s) scored (' + data.aggregation_method + ' aggregation) in ' + data.processing_time_sec.toFixed(2) + 's on ' + data.device + '.';
+        })
+        .catch(function(err){
+          status.textContent = err.message || 'Analysis failed — is the Flask server running (python app.py --model model.pt)?';
+        })
+        .finally(function(){
+          analyzeBtn.disabled = false;
+        });
+    });
+  })();
+
+  if (reduced || !window.Animation) return;
+  document.documentElement.classList.add('intro');
+
+  function run(){
+    var mobile = window.innerWidth <= 599;
+    var mul = mobile ? 0.86 : 1;
+    var EXPO = 'cubic-bezier(.16,1,.3,1)', QUINT = 'cubic-bezier(.22,1,.36,1)',
+        QUART = 'cubic-bezier(.25,1,.5,1)', TYPE = 'cubic-bezier(.22,.85,.24,1)';
+    var anims = [];
+    function at(el, kf, dur, delay, easing){
+      if (!el) return;
+      anims.push(el.animate(kf, { duration: dur*mul*1000, delay: delay*mul*1000, easing: easing, fill:'forwards' }));
+    }
+
+    at(document.querySelector('.logo'), [{opacity:0, transform:'scale(.9)'},{opacity:1, transform:'scale(1)'}], .70, 0, EXPO);
+    document.querySelectorAll('nav a').forEach(function(a,i){
+      at(a, [{opacity:0, transform:'translateY(7px)'},{opacity:1, transform:'translateY(0)'}], .62, .12 + i*.055, QUINT);
+    });
+    at(document.querySelector('.burger'), [{opacity:0},{opacity:1}], .55, .18, QUART);
+    at(document.querySelector('.btn-top'), [{clipPath:'inset(0 100% 0 0)'},{clipPath:'inset(0 0% 0 0)'}], .66, .28, EXPO);
+    document.querySelectorAll('h1 .ln span').forEach(function(sp,i){
+      at(sp, [{transform:'translateY(120%)'},{transform:'translateY(0)'}], .98, .34 + i*.09, TYPE);
+    });
+    at(document.querySelector('.sub'), [{opacity:0, transform:'translateY(14px)'},{opacity:1, transform:'translateY(0)'}], .72, .74, QUINT);
+    at(document.querySelector('.btn-cta'), [{clipPath:'inset(0 100% 0 0)'},{clipPath:'inset(0 0% 0 0)'}], .70, .90, EXPO);
+    document.querySelectorAll('.rule').forEach(function(r,i){
+      at(r, [{transform:'scaleY(0)'},{transform:'scaleY(1)'}], .60, .98 + i*.07, QUART);
+    });
+    document.querySelectorAll('.stat .num').forEach(function(n,i){
+      at(n, [{opacity:0, transform:'translateY(12px)'},{opacity:1, transform:'translateY(0)'}], .66, 1.04 + i*.085, QUINT);
+    });
+    document.querySelectorAll('.stat .lab').forEach(function(l,i){
+      at(l, [{opacity:0, transform:'translateY(10px)'},{opacity:1, transform:'translateY(0)'}], .62, 1.10 + i*.085, QUINT);
+    });
+
+    var done = false;
+    function finish(){
+      if (done) return; done = true;	
+      anims.forEach(function(a){ try{ a.cancel(); }catch(e){} });
+      document.documentElement.classList.remove('intro');
+    }
+    Promise.race([
+      Promise.all(anims.map(function(a){ return a.finished.catch(function(){}); })),
+      new Promise(function(r){ setTimeout(r, 4000); })
+    ]).then(finish);
+  }
+
+  var started = false;
+  function start(){ if (started) return; started = true; requestAnimationFrame(run); }
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(start);
+    setTimeout(start, 1000);
+  } else {
+    setTimeout(start, 300);
+  }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+flask
+flask-cors
+gunicorn
+transformers
+librosa
+soundfile
+matplotlib
+numpy

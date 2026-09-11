@@ -1,0 +1,12 @@
+venv/
+__pycache__/
+*.pyc
+.env
+hf_cache/
+*.wav
+*.mp3
+*.webm
+*.m4a
+.vscode/
+.idea/
+.DS_Store
